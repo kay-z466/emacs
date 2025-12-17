@@ -29,9 +29,9 @@
   - [[#latex][Latex]]
 - [[#magit][Magit]]
 - [[#markdown][Markdown]]
+- [[#my-functions][My Functions]]
 - [[#org-mode][ORG MODE]]
   - [[#org-mode-source-block][Org Mode Source Block]]
-  - [[#scratch-buffer][Scratch Buffer]]
   - [[#org-tempo][Org Tempo]]
   -  [[#table-of-contents][Table of Contents]]
   - [[#general-org-mode-settings][General Org Mode Settings]]
@@ -39,6 +39,7 @@
   - [[#fixing-emacs-wierdness][Fixing Emacs Wierdness]]
   - [[#treesitter][Treesitter]]
 - [[#vterm][Vterm]]
+- [[#vundo][Vundo]]
 - [[#zoxide][Zoxide]]
 - [[#keybindings][Keybindings]]
   - [[#emacs-specific][EMACS Specific]]
@@ -50,8 +51,6 @@
 - [[#testing][Testing]]
 
 * Important Programs To Load First
-
-
 ** Elpaca Package Manager 
 
 #+begin_src emacs-lisp
@@ -125,11 +124,15 @@
 
 
 ** Mood Line
+A lightweight, drop-in replacement for the default Emacs mode line configuration.
+Probably faster than the default moed line 
 #+begin_src emacs-lisp
- (use-package mood-line
-  :ensure t                          ; Install from MELPA if needed
-  :config
-  (mood-line-mode 1))                 ; Enable globally
+  (use-package mood-line
+   :ensure t 
+   :config
+   (mood-line-mode 1)
+   :custom
+   (mood-line-glyph-alist mood-line-glyphs-fira-code))
 #+end_src
 
 ** Evil Mode
@@ -389,15 +392,6 @@ emacs inbuilt features
 
 
 
-  (defun my-embark-preview ()
-    "Previews candidate in vertico buffer, unless it's a consult command"
-    (interactive)
-    (unless (bound-and-true-p consult--preview-function)
-      (save-selected-window
-        (let ((embark-quit-after-action nil))
-          (embark-dwim)))))
-
-  (define-key minibuffer-local-map (kbd "M-.") #'my-embark-preview)
 
 
   (use-package consult-dir
@@ -502,41 +496,6 @@ This section configures the LSP and completion setup:
 Sorting In Dired. Also can be done with C-u s --> "-l<>" =note -l is required=
 
 #+begin_src emacs-lisp
-
-
-  (defun my-dired-sort ()
-    "Sort dired listing interactively.
-    'name' uses natural/human-readable sorting (v/V flag in ls)."
-    (interactive)
-    (let ((sort-options
-           '(("date" . "-Al -t")                    ; newest first
-             ("size" . "-Al -S")                    ; biggest first
-             ("name" . "-Al --group-directories-first -v")  ; human-readable name sort
-             ("dir"  . "-Al --group-directories-first")))  ; dirs first, then natural sort
-          choice
-          ls-switches)
-      (setq choice (completing-read "Sort by (default date): "
-                                    sort-options nil t nil nil "date"))
-      (setq ls-switches (cdr (assoc choice sort-options)))
-      (dired-sort-other ls-switches)))
-
-
-  (defun dired-get-size ()
-    "Get total size of all marked files/folders in dired"
-    (interactive)
-    (let ((files (dired-get-marked-files)))
-      (with-temp-buffer
-        (apply 'call-process "/usr/bin/du" nil t nil "-sch" files)
-        (message "Size of all marked files: %s"
-                 (progn 
-                   (re-search-backward "\\(^[0-9.,]+[A-Za-z]+\\).*total$")
-                   (match-string 1))))))
-
-  (add-hook 'dired-mode-hook
-            (lambda ()
-              (evil-define-key 'normal dired-mode-map (kbd "?") #'dired-get-size)))
-
-
   (setq dired-listing-switches "-Al --group-directories-first -v") ;; Set default dired view
   (add-hook 'dired-mode-hook #'dired-hide-details-mode)
 
@@ -655,10 +614,13 @@ Provides actions on selection targets in buffer/minibuffer (kind of like a right
   (use-package latex
     :defer t
     :ensure auctex
-    :hook ((LaTeX-mode . prettify-symbols-mode)
-         	 (LaTeX-mode . turn-on-reftex))
+    :hook ((LaTeX-mode . prettify-symbols-mode))
     :bind (:map LaTeX-mode-map
                 ("C-S-e" . latex-math-from-calc))
+    :init
+    (setq TeX-auto-save t)
+    (setq TeX-parse-self t)
+    (setq-default TeX-master nil)
     :config
     ;; Format math as a Latex string with Calc
     (defun latex-math-from-calc ()
@@ -681,18 +643,21 @@ Provides actions on selection targets in buffer/minibuffer (kind of like a right
 
 
   (use-package preview
+    :defer t
     :after latex
     :hook ((LaTeX-mode . preview-larger-previews))
     :config
     (defun preview-larger-previews ()
       (setq preview-scale-function
-            (lambda () (* 0.7
+            (lambda () (* 0.8
                           (funcall (preview-scale-from-face)))))))
+
 
 
 
   (use-package reftex
     :defer t
+    :after latex
     :hook (LaTeX-mode . turn-on-reftex)
     :custom
     (reftex-plug-into-AUCTeX t))
@@ -809,19 +774,111 @@ Provides actions on selection targets in buffer/minibuffer (kind of like a right
 
 #+end_src
 
+
+* My Functions
+
+#+begin_src emacs-lisp
+
+    ;;; My Functions for Emacs  
+      ;;;; Mode Line Toggle
+  (defvar-local my--saved-mode-line-format mode-line-format
+    "Backup of the mode line format for the current buffer.")
+
+  (defun my/toggle-mode-line ()
+    "Toggle mode line visibility for the current buffer only."
+    (interactive)
+    (if mode-line-format
+        (progn
+          (setq my--saved-mode-line-format mode-line-format)
+          (setq mode-line-format nil))
+      (setq mode-line-format my--saved-mode-line-format))
+    (force-mode-line-update)
+    (redraw-display))
+
+    ;;;; Line Number toggle 
+  (defvar-local my--saved-display-line-numbers nil
+    "Internal storage for previous `display-line-numbers` value.")
+
+  (defun my/toggle-line-numbers ()
+    "Toggle line numbers, restoring the previous value when re-enabled."
+    (interactive)
+    (if display-line-numbers
+        ;; Turning OFF
+        (progn
+          (setq my--saved-display-line-numbers display-line-numbers)
+          (setq-local display-line-numbers nil))
+      ;; Turning ON
+      (setq-local display-line-numbers
+                  (or my--saved-display-line-numbers t))))
+
+    ;;;; Reading / Zen Mode
+  (defun my/reading-mode ()
+    "Enter or exit a distraction-free zen mode."
+    (interactive)
+    
+    ;; Toggle mode-line
+    (my/toggle-mode-line)
+    
+    ;; Toggle line numbers (state-preserving)
+    (my/toggle-line-numbers))
+
+    ;;;; Dired Sort Function
+  (defun my/dired-sort ()
+    "Sort dired listing interactively."
+    (interactive)
+    (let ((sort-options
+           '(("date" . "-Al -t")                    ; newest first
+             ("size" . "-Al -S")                    ; biggest first
+             ("name" . "-Al --group-directories-first -v")  ; human-readable name sort
+             ("dir"  . "-Al --group-directories-first")))  ; dirs first, then natural sort
+          choice
+          ls-switches)
+      (setq choice (completing-read "Sort by (default date): "
+                                    sort-options nil t nil nil "date"))
+      (setq ls-switches (cdr (assoc choice sort-options)))
+      (dired-sort-other ls-switches)))
+
+
+  ;;;; Get Dired Directory Size 
+  (defun my/dired-get-size ()
+    "Get total size of all marked files/folders in dired"
+    (interactive)
+    (let ((files (dired-get-marked-files)))
+      (with-temp-buffer
+        (apply 'call-process "/usr/bin/du" nil t nil "-sch" files)
+        (message "Size of all marked files: %s"
+                 (progn 
+                   (re-search-backward "\\(^[0-9.,]+[A-Za-z]+\\).*total$")
+                   (match-string 1))))))
+
+
+  (with-eval-after-load 'dired
+  (define-key dired-mode-map (kbd "?") #'my/dired-get-size))
+
+  (add-hook 'dired-mode-hook
+            (lambda ()
+              (evil-define-key 'normal dired-mode-map (kbd "?") #'my/dired-get-size)))
+
+
+
+  ;;;; Consult Preview For Any buffer  
+  (defun my/consult-preview ()
+    "Previews candidate in vertico buffer, unless it's a consult command"
+    (interactive)
+    (unless (bound-and-true-p consult--preview-function)
+      (save-selected-window
+        (let ((embark-quit-after-action nil))
+          (embark-dwim)))))
+
+  (define-key minibuffer-local-map (kbd "M-.") #'my/consult-preview)
+#+end_src
+
 * ORG MODE
 
 ** Org Mode Source Block
 Open source block editing buffer in new window
 #+begin_src emacs-lisp
   (setq org-src-window-setup 'current-window)  ;; edits in the current window
-#+end_src
-** Scratch Buffer
-Scratch Buffer defaults to org-mode
-#+begin_src emacs-lisp
-
-  ;; (setq initial-major-mode 'org-mode)
-
 #+end_src
 
 ** Org Tempo
@@ -914,6 +971,11 @@ Here we set the following
 
 * Sane Defaults
 ** Fixing Emacs Wierdness
+*** Backup ~ files
+Useless
+#+begin_src emacs-lisp
+  (setq make-backup-files nil)
+#+end_src
 *** Ediff
 #+begin_src emacs-lisp
   ;; Always use vertical split for diffs
@@ -1050,20 +1112,39 @@ c good
     :ensure t)
 #+end_src
 
+* Vundo
+Visualize undo tree
+#+begin_src emacs-lisp
+  (use-package vundo
+    :ensure t
+    :bind ("C-x u" . vundo)
+    :config
+    ;; Take less on-screen space.
+    (setq vundo-compact-display t)
+    ;; Use `HJKL` VIM-like motion, also Home/End to jump around.
+    (define-key vundo-mode-map (kbd "l") #'vundo-forward)
+    (define-key vundo-mode-map (kbd "<right>") #'vundo-forward)
+    (define-key vundo-mode-map (kbd "h") #'vundo-backward)
+    (define-key vundo-mode-map (kbd "<left>") #'vundo-backward)
+    (define-key vundo-mode-map (kbd "j") #'vundo-next)
+    (define-key vundo-mode-map (kbd "<down>") #'vundo-next)
+    (define-key vundo-mode-map (kbd "k") #'vundo-previous)
+    (define-key vundo-mode-map (kbd "<up>") #'vundo-previous)
+    (define-key vundo-mode-map (kbd "<home>") #'vundo-stem-root)
+    (define-key vundo-mode-map (kbd "<end>") #'vundo-stem-end)
+    (define-key vundo-mode-map (kbd "q") #'vundo-quit)
+    (define-key vundo-mode-map (kbd "C-g") #'vundo-quit)
+    (define-key vundo-mode-map (kbd "RET") #'vundo-confirm))
+#+end_src
+
+
 * Zoxide
 #+begin_src emacs-lisp
 
-(defun zoxide (q)
-  "Fuzzy jump using zoxide, supports space-separated terms."
-  (interactive "sZoxide: ")
-  (let* ((bin (executable-find "zoxide"))
-         (args (cons "query" (split-string q " +" t))))
-    (unless bin (error "Install zoxide"))
-    (with-temp-buffer
-      (if (= 0 (apply #'call-process bin nil t nil args))
-          (funcall-interactively #'dired (string-trim (buffer-string)))
-        (error "No match")))))
-
+  (use-package zoxide
+    :ensure t
+    :init
+    (global-set-key (kbd "C-x C-j") 'zoxide-find-file))
 #+end_src
 
 * Keybindings
@@ -1072,14 +1153,18 @@ Using Emacs-Style keybindings
 *** Global
 
 #+begin_src emacs-lisp
+  ;;; Emacs Specifc Binidngs 
   (global-set-key (kbd "C-=") 'text-scale-increase)
   (global-set-key (kbd "C--") 'text-scale-decrease)
   (global-set-key (kbd "<C-wheel-up>") 'text-scale-increase)
   (global-set-key (kbd "<C-wheel-down>") 'text-scale-decrease)
   (global-set-key (kbd "<C-tab>") #'mode-line-other-buffer)
   (global-set-key (kbd "C-c w") #'kill-buffer-and-window)
-  (global-set-key (kbd "C-c C-i C-u") #'insert-char)
+  (global-set-key (kbd "C-c u") #'insert-char)
   (global-set-key (kbd "C-<return>") #'eval-print-last-sexp)
+  (global-set-key (kbd "C-x g") #'magit)
+  (global-set-key (kbd "C-x C-z") #'my/reading-mode)
+  (global-set-key (kbd "C-c e") #'evil-mode)
 #+end_src
 
 *** Mode Specific
@@ -1113,12 +1198,13 @@ Using Emacs-Style keybindings
   (evil-global-set-key 'normal (kbd "<leader>fS") #'consult-locate)
   (evil-global-set-key 'normal (kbd "<leader>fb") #'consult-buffer)
   (evil-global-set-key 'normal (kbd "<leader>fr") #'consult-recent-file)
+  (evil-global-set-key 'normal (kbd "<leader>df") #'consult-flymake)
   (evil-global-set-key 'normal (kbd "<leader>fl") #'consult-line)
   (evil-global-set-key 'normal (kbd "<leader>fL") #'consult-line-multi)
   (evil-global-set-key 'normal (kbd "<leader>fd") #'consult-imenu)
   (evil-global-set-key 'normal (kbd "<leader>fD") #'consult-imenu-multi)
   (evil-global-set-key 'normal (kbd "<leader>fo") #'consult-outline)
-  (evil-global-set-key 'normal (kbd "<leader>fy") #'consult-yank-from-kill-ring)
+  (evil-global-set-key 'normal (kbd "<leader>cy") #'consult-yank-from-kill-ring)
   (evil-global-set-key 'normal (kbd "<leader>th") #'consult-theme)
   (evil-global-set-key 'normal (kbd "<leader>bb") #'consult-buffer)
   (evil-global-set-key 'normal (kbd "<leader>de") #'consult-dir)
@@ -1129,7 +1215,8 @@ Using Emacs-Style keybindings
   (evil-global-set-key 'normal (kbd "<leader>ib") #'ibuffer)
   (evil-global-set-key 'normal (kbd "<leader>sb") #'save-buffer)
   (evil-global-set-key 'normal (kbd "<leader>dj") #'dired-jump)
-  (evil-global-set-key 'normal (kbd "<leader>cd") #'zoxide)
+  (evil-global-set-key 'normal (kbd "<leader>cd") #'zoxide-travel)
+  (evil-global-set-key 'normal (kbd "<leader>fj") #'zoxide-find-file)
   (evil-global-set-key 'normal (kbd "<leader>vt") #'vterm)
   (evil-global-set-key 'normal (kbd "<leader>cf") #'eglot-format)
   (evil-global-set-key 'normal (kbd "<leader>er") #'eglot-rename)
@@ -1151,6 +1238,13 @@ Using Emacs-Style keybindings
   (evil-global-set-key 'normal (kbd "<leader>ml") #'bookmark-insert-location)
   (evil-global-set-key 'normal (kbd "<leader>mj") #'bookmark-bmenu-list)
   (evil-global-set-key 'normal (kbd "<leader>ic") #'insert-char)
+  (evil-global-set-key 'normal (kbd "<leader>is") #'ispell)
+  (evil-global-set-key 'normal (kbd "<leader>mg") #'magit)
+  (evil-global-set-key 'normal (kbd "<leader>em") #'elpaca-manager)
+  (evil-global-set-key 'normal (kbd "<leader>xnn") #'narrow-to-region)
+  (evil-global-set-key 'normal (kbd "<leader>xnp") #'narrow-to-page)
+  (evil-global-set-key 'normal (kbd "<leader>xnd") #'narrow-to-defun)
+  (evil-global-set-key 'normal (kbd "<leader>xnw") #'widen)
   (evil-global-set-key 'normal (kbd "K") #'eldoc-box-help-at-point)
 
   (with-eval-after-load 'evil
@@ -1231,27 +1325,9 @@ Defining the various fonts that Emacs will use.
 *** Disable Menubar, Toolbars and Scrollbars
 
 #+begin_src emacs-lisp
-      (menu-bar-mode -1)
-      (tool-bar-mode -1)
-      (scroll-bar-mode 1)
-      ;; (setq-default mode-line-format nil)
-
-
-
-  (defvar-local my--saved-mode-line-format mode-line-format
-  "Backup of the mode line format for the current buffer.")
-
-  (defun my-toggle-mode-line ()
-    "Toggle mode line visibility for the current buffer only."
-    (interactive)
-    (if mode-line-format
-        (progn
-          (setq my--saved-mode-line-format mode-line-format)
-          (setq mode-line-format nil))
-      (setq mode-line-format my--saved-mode-line-format))
-    (force-mode-line-update)
-    (redraw-display))
-
+  (menu-bar-mode -1)
+  (tool-bar-mode -1)
+  (scroll-bar-mode -1)
 #+end_src
 
 
@@ -1263,42 +1339,7 @@ Defining the various fonts that Emacs will use.
 
 #+end_src
 
-
 * Testing
-
 #+begin_src emacs-lisp
-  (use-package vundo
-    :ensure t
-    :defer t
-    :bind ("C-x u" . vundo)
-    :config
-    ;; Take less on-screen space.
-    (setq vundo-compact-display t)
-    
-    ;; Better contrasting highlight.
-    (custom-set-faces
-     '(vundo-node ((t (:foreground "#cecece"))))
-     '(vundo-stem ((t (:foreground "#cecece"))))
-     '(vundo-highlight ((t (:foreground "#2adcdc")))))
-    
-    ;; Use `HJKL` VIM-like motion, also Home/End to jump around.
-    (define-key vundo-mode-map (kbd "l") #'vundo-forward)
-    (define-key vundo-mode-map (kbd "<right>") #'vundo-forward)
-    (define-key vundo-mode-map (kbd "h") #'vundo-backward)
-    (define-key vundo-mode-map (kbd "<left>") #'vundo-backward)
-    (define-key vundo-mode-map (kbd "j") #'vundo-next)
-    (define-key vundo-mode-map (kbd "<down>") #'vundo-next)
-    (define-key vundo-mode-map (kbd "k") #'vundo-previous)
-    (define-key vundo-mode-map (kbd "<up>") #'vundo-previous)
-    (define-key vundo-mode-map (kbd "<home>") #'vundo-stem-root)
-    (define-key vundo-mode-map (kbd "<end>") #'vundo-stem-end)
-    (define-key vundo-mode-map (kbd "q") #'vundo-quit)
-    (define-key vundo-mode-map (kbd "C-g") #'vundo-quit)
-    (define-key vundo-mode-map (kbd "RET") #'vundo-confirm))
 
-#+end_src
-
-
-#+begin_src emacs-lisp
-(emacs-init-time)
 #+end_src
