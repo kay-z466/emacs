@@ -429,6 +429,7 @@ This section configures the LSP and completion setup:
        (lua-ts-mode . eglot-ensure)
        (js-ts-mode . eglot-ensure)
        (typescript-ts-mode . eglot-ensure)
+       (julia-ts-mode . eglot-ensure)
        (rust-ts-mode . eglot-ensure))) 
 
 
@@ -606,14 +607,49 @@ Provides actions on selection targets in buffer/minibuffer (kind of like a right
 ** Golang
 ** Lua
 ** Julia
+#+begin_src emacs-lisp
+
+(use-package julia-mode
+  :ensure t)
+  
+  (use-package julia-ts-mode
+    :defer t
+    :ensure t
+    :mode "\\.jl$")
+
+  (use-package eglot-jl
+    :ensure t
+    :after eglot)
+
+  (use-package julia-repl
+    :ensure t
+    :after julia-ts-mode
+    :commands julia-repl
+    :custom
+    (julia-repl-executable-records '((default "julia")))
+    (julia-repl-switches "--startup-file=no --history-file=yes")
+    :bind
+    (:map julia-ts-mode-map
+          ("C-c C-z" . julia-repl)
+          ("C-c C-c" . julia-repl-send-buffer)
+          ("C-c C-r" . julia-repl-send-region-or-line)
+          ("C-c C-l" . julia-repl-send-line)))
+
+
+
+
+#+end_src
+
+#+RESULTS:
+
 ** Python
 ** Latex
 #+begin_src emacs-lisp
 
 
   (use-package latex
-    :defer t
     :ensure auctex
+    :mode ("\\.tex\\'" . LaTeX-mode)
     :hook ((LaTeX-mode . prettify-symbols-mode))
     :bind (:map LaTeX-mode-map
                 ("C-S-e" . latex-math-from-calc))
@@ -641,6 +677,22 @@ Provides actions on selection targets in buffer/minibuffer (kind of like a right
                                       calc-prefer-frac t
                                       calc-angle-mode rad))))))))
 
+  ;;; Synctex + Zathura Support
+  (with-eval-after-load 'tex
+    (add-to-list 'TeX-view-program-list
+                 '("Zathura"
+                   ("zathura %o"
+                    (mode-io-correlate
+                     " --synctex-forward %n:0:%b -x \"emacsclient +%{line} %{input}\""))
+                   "zathura"))
+    
+    (setq TeX-view-program-selection
+          '((output-pdf "Zathura")))
+    
+    (setq TeX-source-correlate-mode t)
+    (setq TeX-source-correlate-start-server t))
+
+
 
   (use-package preview
     :defer t
@@ -651,8 +703,6 @@ Provides actions on selection targets in buffer/minibuffer (kind of like a right
       (setq preview-scale-function
             (lambda () (* 0.8
                           (funcall (preview-scale-from-face)))))))
-
-
 
 
   (use-package reftex
@@ -754,6 +804,9 @@ Provides actions on selection targets in buffer/minibuffer (kind of like a right
     (define-key orgtbl-mode-map (kbd "C-c C-x") #'org-table-align))
 
 #+end_src
+
+#+RESULTS:
+: org-table-align
 
 * Magit
 
@@ -1001,7 +1054,7 @@ Native in 29+ is the best
 
 *** Restore Last Session
 #+begin_src emacs-lisp
-  (desktop-save-mode 1)
+  (desktop-save-mode -1)
 #+end_src
 
 *** Auto load files changed on Disk
@@ -1091,6 +1144,7 @@ Buffer with same name get better samrt names
           (cpp     "https://github.com/tree-sitter/tree-sitter-cpp")
           (rust    "https://github.com/tree-sitter/tree-sitter-rust")
           (go      "https://github.com/tree-sitter/tree-sitter-go")
+  		(julia  "https://github.com/tree-sitter/tree-sitter-julia")
           (java    "https://github.com/tree-sitter/tree-sitter-java")))
 
   (setq treesit-font-lock-level 4)
@@ -1102,6 +1156,9 @@ Buffer with same name get better samrt names
       (treesit-auto-add-to-auto-mode-alist 'all)
       (global-treesit-auto-mode))
 #+end_src
+
+#+RESULTS:
+: [nil 26967 50600 232407 nil elpaca-process-queues nil nil 256000 nil]
 
 
 * Vterm
@@ -1159,7 +1216,7 @@ Using Emacs-Style keybindings
   (global-set-key (kbd "<C-wheel-up>") 'text-scale-increase)
   (global-set-key (kbd "<C-wheel-down>") 'text-scale-decrease)
   (global-set-key (kbd "<C-tab>") #'mode-line-other-buffer)
-  (global-set-key (kbd "C-c w") #'kill-buffer-and-window)
+  (global-set-key (kbd "C-x C-c") #'kill-buffer-and-window)
   (global-set-key (kbd "C-c u") #'insert-char)
   (global-set-key (kbd "C-<return>") #'eval-print-last-sexp)
   (global-set-key (kbd "C-x g") #'magit)
@@ -1199,21 +1256,19 @@ Using Emacs-Style keybindings
   (evil-global-set-key 'normal (kbd "<leader>fb") #'consult-buffer)
   (evil-global-set-key 'normal (kbd "<leader>fr") #'consult-recent-file)
   (evil-global-set-key 'normal (kbd "<leader>df") #'consult-flymake)
-  (evil-global-set-key 'normal (kbd "<leader>fl") #'consult-line)
-  (evil-global-set-key 'normal (kbd "<leader>fL") #'consult-line-multi)
   (evil-global-set-key 'normal (kbd "<leader>fd") #'consult-imenu)
   (evil-global-set-key 'normal (kbd "<leader>fD") #'consult-imenu-multi)
   (evil-global-set-key 'normal (kbd "<leader>fo") #'consult-outline)
-  (evil-global-set-key 'normal (kbd "<leader>cy") #'consult-yank-from-kill-ring)
+  (evil-global-set-key 'normal (kbd "<leader>yY") #'consult-yank-from-kill-ring)
+  (evil-global-set-key 'normal (kbd "<leader>xf") #'find-file)
   (evil-global-set-key 'normal (kbd "<leader>th") #'consult-theme)
   (evil-global-set-key 'normal (kbd "<leader>bb") #'consult-buffer)
   (evil-global-set-key 'normal (kbd "<leader>de") #'consult-dir)
-  (evil-global-set-key 'normal (kbd "<leader>wk") #'kill-buffer-and-window)
-  (evil-global-set-key 'normal (kbd "<leader>ss") #'consult-line)
+  (evil-global-set-key 'normal (kbd "<leader>wd") #'delete-window)
   (evil-global-set-key 'normal (kbd "<leader>yy") #'consult-yank-from-kill-ring)
   (evil-global-set-key 'normal (kbd "<leader>bk") #'kill-current-buffer)
   (evil-global-set-key 'normal (kbd "<leader>ib") #'ibuffer)
-  (evil-global-set-key 'normal (kbd "<leader>sb") #'save-buffer)
+  (evil-global-set-key 'normal (kbd "<leader>bs") #'save-buffer)
   (evil-global-set-key 'normal (kbd "<leader>dj") #'dired-jump)
   (evil-global-set-key 'normal (kbd "<leader>cd") #'zoxide-travel)
   (evil-global-set-key 'normal (kbd "<leader>fj") #'zoxide-find-file)
@@ -1221,8 +1276,9 @@ Using Emacs-Style keybindings
   (evil-global-set-key 'normal (kbd "<leader>cf") #'eglot-format)
   (evil-global-set-key 'normal (kbd "<leader>er") #'eglot-rename)
   (evil-global-set-key 'normal (kbd "<leader> SPC") #'execute-extended-command)
-  (evil-global-set-key 'normal (kbd "<leader>qq") #'kill-buffer-and-window)
+  (evil-global-set-key 'normal (kbd "<leader>wq") #'kill-buffer-and-window)
   (evil-global-set-key 'normal (kbd "<leader>cl") #'consult-line)
+  (evil-global-set-key 'normal (kbd "<leader>cL") #'consult-line-multi)
   (evil-global-set-key 'normal (kbd "<leader>gg") #'consult-goto-line)
   (evil-global-set-key 'normal (kbd "<leader>fl") #'consult-focus-lines)
   (evil-global-set-key 'normal (kbd "<leader>pp") #'project-switch-project)
@@ -1245,6 +1301,9 @@ Using Emacs-Style keybindings
   (evil-global-set-key 'normal (kbd "<leader>xnp") #'narrow-to-page)
   (evil-global-set-key 'normal (kbd "<leader>xnd") #'narrow-to-defun)
   (evil-global-set-key 'normal (kbd "<leader>xnw") #'widen)
+  (evil-global-set-key 'normal (kbd "<leader>si") #'yas-insert-snippet)
+  (evil-global-set-key 'normal (kbd "<leader>sn") #'yas-new-snippet)
+  (evil-global-set-key 'normal (kbd "<leader>se") #'yas-visit-snippet-file)
   (evil-global-set-key 'normal (kbd "K") #'eldoc-box-help-at-point)
 
   (with-eval-after-load 'evil
@@ -1341,5 +1400,5 @@ Defining the various fonts that Emacs will use.
 
 * Testing
 #+begin_src emacs-lisp
-
+  (setq yas-wrap-around-region t)
 #+end_src

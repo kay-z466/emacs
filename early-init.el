@@ -15,3 +15,8 @@
 (setq lsp-use-plists t)
 
 (setq native-comp-speed 3)
+
+
+;; Dosent Recognize juli apath set manually 
+(setenv "PATH" (concat (getenv "HOME") "/.juliaup/bin:" (getenv "PATH")))
+(setq exec-path (append '("~/.juliaup/bin") exec-path))
