@@ -1301,6 +1301,7 @@ Using Emacs-Style keybindings
   (evil-global-set-key 'normal (kbd "<leader>xnp") #'narrow-to-page)
   (evil-global-set-key 'normal (kbd "<leader>xnd") #'narrow-to-defun)
   (evil-global-set-key 'normal (kbd "<leader>xnw") #'widen)
+  (evil-global-set-key 'normal (kbd "<leader>sl") #'imenu)
   (evil-global-set-key 'normal (kbd "<leader>si") #'yas-insert-snippet)
   (evil-global-set-key 'normal (kbd "<leader>sn") #'yas-new-snippet)
   (evil-global-set-key 'normal (kbd "<leader>se") #'yas-visit-snippet-file)
